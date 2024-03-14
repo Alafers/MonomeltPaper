@@ -664,19 +664,7 @@ tool.onKeyUp = function(event) {
 				// Determine the new zoom level based on the scroll direction
 				var newZoom = paper.view.zoom * (delta < 0 ? (1 + zoomFactor) : (1 - zoomFactor));
 
-				// // Calculate the position where the zoom should be centered
-				// var point = new paper.Point(event.offsetX, event.offsetY); // The mouse position relative to the canvas
-				// var viewPosition = paper.view.viewToProject(point); // Convert the mouse position to project coordinates
-
-				// // The key here is to adjust how we compute the move vector for centering the zoom
-				// // Calculate how much the view should move to keep the zoom centered on the mouse position
-				// // We invert the adjustment here by subtracting the move from the current center instead of adding
-				// var move = viewPosition.subtract(paper.view.center);
-				// var newCenter = paper.view.center.subtract(move.divide(paper.view.zoom).multiply(1 - newZoom / paper.view.zoom));
-
-				// Update the view with the new zoom and center
 				paper.view.zoom = newZoom;
-				// paper.view.center = newCenter;
 			}
 			window.addEventListener('wheel', handleWheel, { passive: false });
 			document.addEventListener('keydown', function(event) {
