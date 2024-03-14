@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+		
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+			background-color: rgb(0, 0, 0);
+        }
+        canvas {
+            width: 100vw;
+            height: 100vh;
+			z-index: 10;
+			position: absolute ;
+			padding-top: 0%;
+        }
+		h1 {
+			color: antiquewhite;
+			z-index: 1;
+			padding-top: 0px;
+			font-family: "Ojuju", sans-serif;
+			font-optical-sizing: auto;
+			font-weight: 400;
+			font-style: normal;
+			padding-top: 1 0px;
+    		text-align: center; /* Ensures the text within is centered */
+			position: absolute ;
+			letter-spacing: 20px;
+			top: 0; /* Positions the h1 at the top of the viewport */
+    		left: 50%; /* Centers the h1 based on its left edge */
+    		transform: translateX(-50%); /* Adjusts the h1 back to center it perfectly */
+		}
+
+    </style>
+	<title>Monomelt</title>
+    <!-- Load the Paper.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paper.js/0.12.17/paper-full.min.js" integrity="sha512-NApOOz1j2Dz1PKsIvg1hrXLzDFd62+J0qOPIhm8wueAnk4fQdSclq6XvfzvejDs6zibSoDC+ipl1dC66m+EoSQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Ojuju&display=swap" rel="stylesheet">
+	<script type="importmap">
+		{
+		  "imports": {
+			"perfect-gui": "https://unpkg.com/perfect-gui@latest/dist/perfect-gui.mjs"
+		  }
+		}
+	</script>
+</head>
+<body>
+	<h1>MONOMELT</h1>
+	<input type="file" id="fileInput" style="display: none;" accept=".json">
+    <canvas id="myCanvas"></canvas>
+	<script type="module">
+			import GUI from 'perfect-gui';
+			const gui = new GUI({
+				name: 'Monomelt controls',
+				width: 150,
+				maxHeight: 500,
+				closed: true, 
+				draggable: true,
+				autoRepositioning: true,
+				color: '#2e2e2e',
+				onUpdate: () => {
+				// Callback function triggered each time this GUI instance is updated.    
+				}
+			});
+
+			gui.slider({ name: 'Courbure', value: 2.4 ,  min: 1.4, max: 2.8,  step:0.01 }, value => {
+				handle_len_rate = value; // Update the global maxDistance
+				needUpdate = true; // Flag the scene to be updated
+				if (needUpdate) {
+					refreshScene(); // Ensure this function re-generates connections with the new maxDistance
+					needUpdate = false;
+				}
+			});
+
+			gui.slider({ name: 'Max distance', value: 70 ,  min: 50, max: 500, step:5 }, value => {
+				maxDistance = value; // Update the global maxDistance
+				needUpdate = true; // Flag the scene to be updated
+				if (needUpdate) {
+					refreshScene(); // Ensure this function re-generates connections with the new maxDistance
+					needUpdate = false;
+				}
+			});
+
+			gui.slider({ name: 'Radius multiplier', value: 1 ,  min: 0.25, max: 2,  step:0.05 }, value => {
+				radiusMult = value; // Update the global maxDistance
+				needUpdate = true; // Flag the scene to be updated
+				if (needUpdate) {
+					refreshScene(); // Ensure this function re-generates connections with the new maxDistance
+					needUpdate = false;
+				}
+			});
+
+			gui.slider({ name: 'Zoom', value: 1 ,  min: 0.25, max: 4 }, value => {
+				zoom = value; // Update the global maxDistance
+				needUpdate = true; // Flag the scene to be updated
+				if (needUpdate) {
+					paper.view.zoom = zoom; 
+					needUpdate = false;
+				}
+			});
+
+			gui.slider({ name: 'Grid spacing X', value: 350 ,  min: 50, max: 500,  step:50  }, value => {
+				gridSpacingX = value; // Update the global maxDistance
+				needUpdate = true; // Flag the scene to be updated
+				if (needUpdate) {
+					drawGrid();
+					needUpdate = false;
+				}
+			});
+
+			gui.slider({ name: 'Grid spacing Y', value: 250 ,  min: 50, max: 500,  step:50  }, value => {
+				gridSpacingY = value; // Update the global maxDistance
+				needUpdate = true; // Flag the scene to be updated
+				if (needUpdate) {
+					drawGrid();
+					needUpdate = false;
+				}
+			});
+
+            paper.install(window);
+            paper.setup(document.getElementById('myCanvas'));
+
+            var centerY = view.size.height / 2;
+            var centerX = view.size.width / 2;
+
+			var zoom = 1;
+			paper.view.zoom = zoom;
+
+            project.currentStyle = {
+                fillColor: new paper.Color(1, 1, 1, 1)
+            };
+
+			var gridLayer = new paper.Layer();
+			gridLayer.name = 'GridLayer'; // Naming the layer is optional but helpful for identification.
+			var sceneLayer = new paper.Layer();
+			sceneLayer.name = 'SceneLayer';
+			gridLayer.bringToFront();
+
+			// Reset the initial grid path to be 2 pixels wide (as the base case)
+			var sizeX = new paper.Size(4, 4); // Base size for the 2-pixel-wide squares
+			var myGrid = new paper.Rectangle(sizeX);
+			var myCursor = new Path.Rectangle(myGrid);
+			myCursor.addTo(gridLayer);
+			
+			myCursor.position = new Point(centerX, centerY);
+			var originalCursorPosition = new Point(0, 0);
+			myCursor.fillColor = 'cadetBlue';
+
+			var gridGroup = new paper.Group();
+			gridGroup.addTo(gridLayer);
+			var lineGroup = new paper.Group(); // Child group for lines
+   			gridGroup.addChild(lineGroup); 
+
+			// Calculate the number of clones based on the canvas size and desired spacing
+			var spacing = 25; // Spacing between clones
+			var clonesPerRow = Math.ceil(paper.view.size.width / spacing) + 50;
+			var clonesPerColumn = Math.ceil(paper.view.size.height / spacing) + 50;
+
+			// Calculate starting positions
+			var startX = centerX - Math.floor(clonesPerRow / 2) * spacing;
+			var startY = centerY - Math.floor(clonesPerColumn / 2) * spacing;
+
+			var maxRadius = Math.sqrt(Math.pow(Math.max(centerX - startX, startX + (clonesPerRow - 1) * spacing - centerX), 2) + Math.pow(Math.max(centerY - startY, startY + (clonesPerColumn - 1) * spacing - centerY), 2)) - 750;
+			var radiusMult = 1;
+			var positionMult = 1;
+
+			var originalPositions = [];
+
+			for (var y = 0; y < clonesPerColumn; y++) {
+				for (var x = 0; x < clonesPerRow; x++) {
+					// Clone the original myCursor
+					var clonedPath = myCursor.clone();
+
+					// Determine position for this clone
+					var posX = startX + x * spacing;
+					var posY = startY + y * spacing;
+					clonedPath.position = new paper.Point(posX, posY);
+
+					// Determine if we need to adjust properties for this clone
+					var isOffset = (x + y) % 2 === 0;
+					
+					// Adjust fillColor based on the position
+					clonedPath.fillColor = isOffset ? 'white' : 'grey';
+					clonedPath.scale(0.25);
+
+					// Calculate the distance from the center
+					var distanceFromCenter = Math.sqrt(Math.pow(posX - centerX, 2) + Math.pow(posY - centerY, 2));
+
+					// Scale the opacity based on the distance
+					var opacity = 1 - (distanceFromCenter / maxRadius);
+					clonedPath.opacity = Math.max(opacity, 0); // Ensure opacity doesn't go below 0
+
+					// Store the original position, relative to center, for later
+					originalPositions.push({ x: posX - centerX, y: posY - centerY });
+
+					// Add the cloned path to the grid group
+					gridGroup.addChild(clonedPath);
+				}
+			}
+
+			var gridSpacingX = 250; // Grid spacing
+			var gridSpacingY = 350; // Grid spacing
+
+			function drawGrid() {
+				lineGroup.removeChildren();
+				// Determine the range of the grid
+				var bounds = paper.view.bounds;
+
+				// Vertical lines
+				for (var x = centerX - (Math.floor(centerX / gridSpacingX) * gridSpacingX) - gridSpacingX/2; x < bounds.width; x += gridSpacingX / 2) {
+					var isMainLine = Math.floor((x - centerX) % gridSpacingX) == 0;
+					var verticalLine = new paper.Path({
+						segments: [[x, bounds.top], [x, bounds.bottom]],
+						strokeColor: isMainLine ? 'grey' : 'grey',
+						strokeWidth: isMainLine ? 1 : 2,
+					});
+					lineGroup.addChild(verticalLine)
+				}
+
+				// Horizontal lines
+				for (var y = centerY - (Math.floor(centerY / gridSpacingY) * gridSpacingY) ; y < bounds.height; y += gridSpacingY / 2) {
+					var isMainLine = Math.floor((y - centerY) % gridSpacingY) == 0;
+					var horizontalLine = new paper.Path({
+						segments: [[bounds.left, y], [bounds.right, y]],
+						strokeColor: isMainLine ? 'grey' : 'grey',
+						strokeWidth: isMainLine ? 0.5 : 1, 
+					});
+					lineGroup.addChild(horizontalLine )
+				}
+			}
+			drawGrid();
+
+			zoom = 1;
+			paper.view.zoom = zoom;
+
+			myCursor.bringToFront();
+
+			gridGroup.visible = !gridGroup.visible;
+			myCursor.visible = !myCursor.visible;
+
+			// Step 2: Listen for the 'keydown' Event
+			var tool = new paper.Tool();
+			// Initialize variables for current index and update flag
+			var currentIndex = 0;
+			var needUpdate = false;
+
+			// Modify the onKeyDown function
+			tool.onKeyDown = function(event) {
+				const step = 25; // Movement step size
+
+				// Handle movement and creation
+				switch(event.key) {
+					case '2':
+					case 'é':
+						// Change the radius of the current ball to 10
+						if (ballPositions[currentIndex]) { // Check if the current ball exists
+							ballPositions[currentIndex].radius = 15;
+							needUpdate = true;
+						}
+						break;
+					case '1':
+					case '&':
+						// Change the radius of the current ball to 25
+						if (ballPositions[currentIndex]) { // Check if the current ball exists
+							ballPositions[currentIndex].radius = 25;
+							needUpdate = true;
+						}
+						break;
+					case '²':
+						// Change the radius of the current ball to 10
+						if (ballPositions[currentIndex]) { // Check if the current ball exists
+							ballPositions[currentIndex].radius = 0;
+							needUpdate = true;
+						}
+						break;
+					case 'ArrowUp':
+					case 'z':
+						myCursor.position.y -= step; // Move up
+						ballPositions[currentIndex].center[1] -= step;
+						needUpdate = true;
+						break;
+					case 'ArrowLeft':
+					case 'q':
+						myCursor.position.x -= step; // Move left
+						ballPositions[currentIndex].center[0] -= step;
+						needUpdate = true;
+						break;
+					case 'ArrowDown':
+					case 's':
+						myCursor.position.y += step; // Move down
+						ballPositions[currentIndex].center[1] += step;
+						needUpdate = true;
+						break;
+					case 'ArrowRight':
+					case 'd':
+						myCursor.position.x += step; // Move right
+						ballPositions[currentIndex].center[0] += step;
+						needUpdate = true;
+						break;
+					case 'enter':
+						// Create a new ball at current position and update index
+						var currentBall = ballPositions[currentIndex];
+
+						var newBall = { center: [...currentBall.center], radius: ballPositions[currentIndex].radius };
+						ballPositions.push(newBall);
+						currentIndex = ballPositions.length - 1; // Update current index to new ball
+						needUpdate = true;
+						break;
+					case "space":
+						// Toggle visibility, no change to ball positions
+						gridGroup.visible = !gridGroup.visible;
+						myCursor.visible = !myCursor.visible;
+						break;
+					case "G":
+					case "g":
+						// Toggle visibility, no change to ball positions
+						lineGroup.visible = !lineGroup.visible;
+						break;
+					case "backspace":
+						// Prevent the default backspace behavior
+						event.preventDefault();
+
+						// Filter out balls that are at the same position as the cursor, except for the current ball
+						var filteredPositions = ballPositions.filter((ball, index) => {
+							if (index === currentIndex) {
+								// Always keep the current ball
+								return true;
+							} else {
+								// Keep balls that don't share the same position as the cursor
+								return !(ball.center[0] === myCursor.position.x && ball.center[1] === myCursor.position.y);
+							}
+						});
+
+						// Update ballPositions with the filtered list
+						ballPositions = filteredPositions;
+
+						// Update currentIndex if necessary
+						if (currentIndex >= ballPositions.length) {
+							currentIndex = ballPositions.length - 1; // Adjust to the last item or -1 if array is empty
+						}
+
+						// Set the flag to update the scene
+						needUpdate = true;
+						break;
+						case 'r':
+						case 'R': // To handle both lowercase and uppercase 'R'
+							// Reset ballPositions to only contain the current index ball at the center
+							ballPositions = [{ center: [centerX, centerY], radius: 25 }];
+							myCursor.position = new Point(centerX, centerY);
+							
+							// Reset currentIndex to 0, as there's now only one ball in the list
+							currentIndex = 0;
+							
+							zoom = 1;
+							view.zoom = zoom;
+
+							// Set the flag to update the scene
+							needUpdate = true;
+							break;
+						case 'L':
+						case 'l':
+							var data = {
+								ballPositions: ballPositions,
+								handle_len_rate: handle_len_rate,
+								maxDistance: maxDistance,
+								radiusMult: radiusMult,
+								gridSpacingX: gridSpacingX,
+								gridSpacingY: gridSpacingY, 
+								currentIndex: currentIndex
+							};
+							var json = JSON.stringify(data, null, 2); // Beautify the JSON output
+							console.log(json);
+							downloadJSON(json, "Monomelt.json");
+							break;
+						case 'I':
+						case 'i':
+							document.getElementById('fileInput').click(); // Trigger file input
+							break;
+				}
+
+				originalCursorPosition = new Point(myCursor.position.x, myCursor.position.y);
+				// Check if the scene needs an update
+				if (needUpdate) {
+					refreshScene();
+					needUpdate = false; // Reset update flag
+				}
+			};
+
+			// Function to trigger the download of the JSON string as a .json file
+			function downloadJSON(jsonString, filename) {
+				var element = document.createElement('a');
+				element.setAttribute('href', 'data:text/json;charset=utf-8,' + encodeURIComponent(jsonString));
+				element.setAttribute('download', filename);
+
+				element.style.display = 'none';
+				document.body.appendChild(element);
+
+				element.click();
+
+				document.body.removeChild(element);
+			}
+
+			document.getElementById('fileInput').addEventListener('change', function(event) {
+				var file = event.target.files[0];
+				if (file) {
+					var reader = new FileReader();
+					reader.onload = function(e) {
+						var data = JSON.parse(e.target.result);
+						
+						// Update each variable with the imported data
+						if(data.ballPositions) ballPositions = data.ballPositions;
+						if(data.handle_len_rate !== undefined) handle_len_rate = data.handle_len_rate;
+						if(data.maxDistance !== undefined) maxDistance = data.maxDistance;
+						if(data.radiusMult !== undefined) radiusMult = data.radiusMult;
+						if(data.gridSpacingX !== undefined) gridSpacingX = data.gridSpacingX;
+						if(data.gridSpacingY !== undefined) gridSpacingY = data.gridSpacingY;
+						if(data.currentIndex !== undefined) currentIndex = data.currentIndex;
+
+						refreshScene(); // Refresh your scene with the new data
+						drawGrid();
+
+						//place the cursor to the current index ball
+						myCursor.position.x = ballPositions[currentIndex].center[0];
+						myCursor.position.y = ballPositions[currentIndex].center[1];
+					};
+					reader.readAsText(file);
+				}
+			});
+
+			var circlePaths = [];
+
+			function refreshScene() {
+				// Clear existing balls and connections, and reset the circlePaths array
+				circlePaths = []; // Reset the circlePaths array to synchronize with current scene content
+				sceneLayer.removeChildren();
+				//connections.removeChildren();
+				
+
+				// Redraw all balls based on updated ballPositions
+				for (var i = 0, l = ballPositions.length; i < l; i++) {
+					var ball = ballPositions[i];
+					var circlePath = new paper.Path.Circle({
+						center: ball.center,
+						radius: ball.radius*radiusMult
+					});
+					circlePath.addTo(sceneLayer); // Add the new circle path to the scene layer
+					circlePaths.push(circlePath); // Update the circlePaths array with the new circle path
+				}
+
+				// Re-generate connections using the updated circlePaths array
+				generateConnections(circlePaths);
+			}
+
+			var ballPositions = [
+				{ center: [centerX, centerY], radius: 25 }
+			];
+
+            var handle_len_rate = 2.4;
+            // var circlePaths = [];
+            var maxDistance = 75;
+
+			for (var i = 0, l = ballPositions.length; i < l; i++) {
+				var ball = ballPositions[i];
+				var circlePath = new paper.Path.Circle({
+					center: ball.center,
+					radius: ball.radius // Use the radius from the ballPositions entry
+				});
+				circlePath.addTo(sceneLayer);
+				circlePaths.push(circlePath);
+			}
+
+            var connections = new paper.Group();
+
+            function generateConnections(paths) {
+                connections.removeChildren();
+
+                for (var i = 0, l = paths.length; i < l; i++) {
+                    for (var j = i - 1; j >= 0; j--) {
+                        var path = metaball(paths[i], paths[j], 0.5, handle_len_rate, maxDistance);
+                        if (path) {
+							var start = path.firstSegment.point;
+                			var end = path.lastSegment.point;
+                            connections.appendTop(path);
+							sceneLayer.addChild(connections);
+                        }
+                    }
+                }
+				paper.view.draw();
+            }
+
+            generateConnections(circlePaths);
+
+            // ---------------------------------------------
+            function metaball(ball1, ball2, v, handle_len_rate, maxDistance) {
+                var center1 = ball1.position;
+                var center2 = ball2.position;
+                var radius1 = ball1.bounds.width / 2;
+                var radius2 = ball2.bounds.width / 2;
+                var pi2 = Math.PI / 2;
+                var d = center1.getDistance(center2);
+                var u1, u2;
+
+                if (radius1 == 0 || radius2 == 0)
+                    return;
+
+                if (d > maxDistance || d <= Math.abs(radius1 - radius2)) {
+                    return;
+                } else if (d < radius1 + radius2) { // case circles are overlapping
+                    u1 = Math.acos((radius1 * radius1 + d * d - radius2 * radius2) /
+                            (2 * radius1 * d));
+                    u2 = Math.acos((radius2 * radius2 + d * d - radius1 * radius1) /
+                            (2 * radius2 * d));
+                } else {
+                    u1 = 0;
+                    u2 = 0;
+                }
+
+                var vector = center2.subtract(center1);
+                var angle1 = vector.getAngleInRadians();
+                var angle2 = Math.acos((radius1 - radius2) / d);
+                var angle1a = angle1 + u1 + (angle2 - u1) * v;
+                var angle1b = angle1 - u1 - (angle2 - u1) * v;
+                var angle2a = angle1 + Math.PI - u2 - (Math.PI - u2 - angle2) * v;
+                var angle2b = angle1 - Math.PI + u2 + (Math.PI - u2 - angle2) * v;
+                var p1a = center1.add(getVector(angle1a, radius1));
+                var p1b = center1.add(getVector(angle1b, radius1));
+                var p2a = center2.add(getVector(angle2a, radius2));
+                var p2b = center2.add(getVector(angle2b, radius2));
+
+
+                // define handle length by the distance between
+                // both ends of the curve to draw
+                var totalRadius = (radius1 + radius2);
+
+                var vector2 = p1a.subtract(p2a);
+
+                var d2 = Math.min(v * handle_len_rate, vector2.length / totalRadius);
+
+                // case circles are overlapping:
+                d2 *= Math.min(1, d * 2 / (radius1 + radius2));
+
+                radius1 *= d2;
+                radius2 *= d2;
+
+				// Calculate midpoints
+				var midpointP1 = p1a.add(p1b).divide(2); // Midpoint of p1a and p1b
+				var midpointP2 = p2a.add(p2b).divide(2); // Midpoint of p2a and p2b
+				var midpointP3 = midpointP1.add(midpointP2).divide(2); // Midpoint of midpointP1 and midpointP2
+
+				// Define a gradient that transitions from transparent to opaque to transparent
+				var alphaGradient = new paper.Gradient([
+					new paper.GradientStop(new paper.Color(1, 1, 1, 1), 0), // Start fully transparent
+					new paper.GradientStop(new paper.Color(1, 1, 1, 1), 1) // End fully transparent
+				], false); // false for linear gradient
+
+				// Create the gradient color, applying it across the calculated vector from midpointP1 to midpointP2
+				var gradientColor = new paper.Color(alphaGradient, midpointP1, midpointP2);
+
+				// Apply this gradient to your path
+				var path = new paper.Path({
+					segments: [p1a, p2a, p2b, p1b],
+					fillColor: gradientColor,
+					closed: true
+				});
+
+                var segments = path.segments;
+                segments[0].handleOut = getVector(angle1a - pi2, radius1);
+                segments[1].handleIn = getVector(angle2a + pi2, radius2);
+                segments[2].handleOut = getVector(angle2b - pi2, radius2);
+                segments[3].handleIn = getVector(angle1b + pi2, radius1);
+
+                return path;
+            }
+
+            function getVector(radians, length) {
+                return new Point({
+                    angle: radians * 180 / Math.PI,
+                    length: length
+                });
+            }
+
+			var oldCenter;
+
+			window.addEventListener('resize', function() {
+				// If oldCenter is not defined, initialize it with the current center
+				if (!oldCenter) {
+					oldCenter = paper.view.center;
+				}
+				
+				// Update the view size
+				paper.view.viewSize = new paper.Size(window.innerWidth, window.innerHeight);
+				
+				// Calculate new center
+				var newCenter = new paper.Point(view.size.width / 2, view.size.height / 2);
+				
+				// Calculate the delta between the new center and the old center
+				var delta = oldCenter.subtract(newCenter);
+				
+				// Scroll the view by the delta to keep the original center content in place
+				paper.view.scrollBy(delta);
+				
+				// Update oldCenter to the new center for future resizes
+				oldCenter = newCenter;
+				// Flag the scene for updating if needed
+				needUpdate = true;
+			});
+
+			// On drag, scroll the View by the difference between mousedown 
+			// and mouseup
+			tool.onMouseDrag = function (event) {
+				var delta = event.downPoint.subtract(event.point)
+				paper.view.scrollBy(delta)
+			}
+
+			var downloadAsSVG = function (fileName) {
+    if (!fileName) {
+        fileName = "Monomelt.svg";
+    }
+
+    // Reference to gridLayer and its index for reinsertion
+    var gridLayerIndex = paper.project.layers.indexOf(gridLayer);
+
+    // Temporarily remove gridLayer from the project
+    gridLayer.remove();
+
+    // Export SVG without the gridLayer
+    var svg = paper.project.exportSVG({ asString: true, bounds: 'view' });
+    var url = "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+    
+    // Create a link and trigger the download
+    var link = document.createElement("a");
+    link.download = fileName;
+    link.href = url;
+    link.click();
+
+    // Reinsert the gridLayer back into its original position in the project
+    if (gridLayerIndex >= 0) {
+        paper.project.insertLayer(gridLayerIndex, gridLayer);
+    } else {
+        paper.project.addLayer(gridLayer); // Fallback in case index was not found
+    }
+
+    paper.view.update(); // Refresh the view to apply changes
+}
+
+tool.onKeyUp = function(event) {
+    if (event.key.toUpperCase() == "P") { // Making it case-insensitive
+        downloadAsSVG();
+    }
+};
+
+			// Function to handle zoom
+			function handleWheel(event) {
+				// Prevent the default scrolling behavior
+				event.preventDefault();
+
+				var delta = event.deltaY; // Gets the vertical scroll amount
+				var zoomFactor = 0.05; // Determines how much the zoom changes per event
+
+				// Determine the new zoom level based on the scroll direction
+				var newZoom = paper.view.zoom * (delta < 0 ? (1 + zoomFactor) : (1 - zoomFactor));
+
+				// // Calculate the position where the zoom should be centered
+				// var point = new paper.Point(event.offsetX, event.offsetY); // The mouse position relative to the canvas
+				// var viewPosition = paper.view.viewToProject(point); // Convert the mouse position to project coordinates
+
+				// // The key here is to adjust how we compute the move vector for centering the zoom
+				// // Calculate how much the view should move to keep the zoom centered on the mouse position
+				// // We invert the adjustment here by subtracting the move from the current center instead of adding
+				// var move = viewPosition.subtract(paper.view.center);
+				// var newCenter = paper.view.center.subtract(move.divide(paper.view.zoom).multiply(1 - newZoom / paper.view.zoom));
+
+				// Update the view with the new zoom and center
+				paper.view.zoom = newZoom;
+				// paper.view.center = newCenter;
+			}
+			window.addEventListener('wheel', handleWheel, { passive: false });
+			document.addEventListener('keydown', function(event) {
+				// Check if 'T' or 't' is pressed
+				if (event.key === 'T' || event.key === 't') {
+					// Select the <h1> element
+					var titleElement = document.querySelector('h1');
+					// Toggle visibility
+					if (titleElement.style.display === 'none') {
+						titleElement.style.display = 'block'; // Show the title
+					} else {
+						titleElement.style.display = 'none'; // Hide the title
+					}
+				}
+			});
+            paper.view.draw(); // Explicitly draw the view
+    </script>
+</body>
+</html>
