@@ -436,9 +436,7 @@
 			function refreshScene() {
 				// Clear existing balls and connections, and reset the circlePaths array
 				circlePaths = []; // Reset the circlePaths array to synchronize with current scene content
-				sceneLayer.removeChildren();
-				//connections.removeChildren();
-				
+				sceneLayer.removeChildren();		
 
 				// Redraw all balls based on updated ballPositions
 				for (var i = 0, l = ballPositions.length; i < l; i++) {
