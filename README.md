@@ -7,11 +7,12 @@ Monomelt is a design system program inspired by metaballs, built on [Paper.js](h
 ### Circle Manipulation
 - **z, q, s, d**: Move the cursor circle around.
 - **Enter**: Place the circle at the cursor's current position.
-- **Delete**: Delete the circle located under the cursor.
+- **Backspace**: Delete the circle located under the cursor.
 
-### Grid Layers
+### Layers
 - **Space**: Toggle the visibility of the grid and cursor layer.
-- **g**: Show or hide the grid layer.
+- **g**: Show or hide the grid.
+- **t**: Show or hide the title.
 
 ### Import/Export
 - **P**: Export the current view to an SVG file.
