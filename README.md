@@ -8,7 +8,7 @@ Monomelt is a design system program inspired by metaballs, built on [Paper.js](h
 - **z, q, s, d**: Move the cursor circle around.
 - **Enter**: Place the circle at the cursor's current position.
 - **Backspace**: Delete the circle located under the cursor.
-- **²**: Change the size to current circle to none.
+- **0**: Change the size to current circle to none.
 - **1**: Change the size to current circle to 1.
 - **2**: Change the size to current circle to 0.5.
 
