@@ -120,17 +120,12 @@
 				}
 			});
 
-			// Assuming 'gui' is your GUI instance
 			gui.slider({ name: 'Frequency', value: 1, min: 0.01, max: 10, step: 0.1 }, value => {
 				frequency = value; // Update the global frequency
-				// Flag the scene to be updated if necessary, or apply the change directly
 			});
 
-			gui.slider({ name: 'Amplitude', value: 1, min: 0, max: 2, step: 0.1 }, value => {
-				amplitude = value; // Update the global amplitude
-				// Use amplitude directly or assign it to pathHeight if you're using that variable
-				pathHeight = amplitude;
-				// Flag the scene to be updated if necessary, or apply the change directly
+			gui.slider({ name: 'Amplitude', value: 0, min: 0, max: 2, step: 0.1 }, value => {
+				pathHeight = value; // Update the global amplitude
 			});
 
             paper.install(window);
@@ -462,6 +457,11 @@
 					circlePaths.push(circlePath); // Update the circlePaths array with the new circle path
 				}
 
+				ballPositions.forEach(ball => {
+				ball.startingY = ball.center[1];
+				console.log(ball.startingY)
+			});
+
 				// Re-generate connections using the updated circlePaths array
 				generateConnections(circlePaths);
 			}
@@ -693,27 +693,43 @@ tool.onKeyUp = function(event) {
 			});
 
 			var frequency = 1; // Initial frequency
-			var amplitude = 1; // Initial amplitude, could use pathHeight directly
 			// Example variable definitions, adjust according to your actual use case
-			var pathHeight = 1; // Initial path height
+			var pathHeight = 0; // Initial path height
 			var center = new Point(view.size.width / 2, view.size.height / 2); // Center of the view
 			var mousePos = 0.5; // Current mouse position, could be updated via onMouseMove
 			var smooth = true; // Whether to smooth the paths
 			var points = circlePaths.length; // Number of points to iterate through, based on your circles
 			// Example: Initializing or updating ballPositions with a startingY property
 
+			ballPositions.forEach(ball => {
+				if (ball.startingY === undefined) {
+					ball.startingY = ball.center[1];
+				}
+				console.log(ball.startingY)
+				// Optional: Assign a random amplitude factor for each ball for variety
+				// ball.randomAmplitude = Math.random() * maxRandomAmplitude; // Define maxRandomAmplitude as needed
+			});
+
 			view.onFrame = function(event) {
 				for (var i = 0; i < ballPositions.length; i++) {
 					var ball = ballPositions[i];
+					
+					// Sinusoidal deviation calculation
 					var sinSeed = event.count + (i + i % 10) * 100;
-					var sinHeight = Math.sin(sinSeed / (200 * frequency)) * amplitude; // Apply frequency and amplitude
-					var yPos = ball.center[1] + Math.sin(sinSeed / (100 * frequency)) * sinHeight; 
+					// If you added a randomAmplitude factor, you can use it here by multiplying pathHeight by ball.randomAmplitude
 
+					var deviation = Math.sin(sinSeed / (1 * frequency)) * pathHeight;
+					
+					// Apply deviation to the startingY position
+					var yPos = ball.startingY + deviation;
+
+					// Update the position of the circlePath and the ball's center in the array
 					var circlePath = circlePaths[i];
 					circlePath.position.y = yPos;
 					ball.center[1] = yPos;
 				}
 
+				// Regenerate connections to reflect the updated positions
 				generateConnections(circlePaths);
 			};
 
